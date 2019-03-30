@@ -625,3 +625,67 @@ VALUES
 (296,300,'A',293,'2017-04-18 23:16:00'),
 (297,224,'B',122,'2017-04-19 08:56:00')
 ;
+
+--1) For hours with orders, how many orders are there each hour based on
+order time?
+SELECT hour(order_datetime) as hr,
+count(*)
+from vanorder
+group by hr;
+
+--2) What is the percentage of money spent for each of the following group of clients?
+-- Clients who completed 1 order : 71.39%
+-- Clients who completed more than 1 order : 28.61%
+CREATE temporary TABLE clients AS
+SELECT requestor_client_id AS ID,
+COUNT(*) AS orders,
+SUM(total_price) AS price
+from vanorder
+Group by requestor_client_id
+;
+SELECT
+ROUND(sum(CASE WHEN orders = 1 THEN price END)/sum(price)*100, 2) AS one_order,
+ROUND(sum(CASE WHEN orders > 1 THEN price END)/sum(price)*100, 2) AS multi_order
+from clients;
+
+/*3) List of unique Client ID who completed at least one order,
+also show each client's total money spent, and the total order(s)
+completed. Order the list by total money spent (descending), then by
+total order(s) completed (descending)*/
+
+SELECT requestor_client_id, COUNT(*), SUM(total_price)
+from vanorder where order_status = 2
+
+/*4) List of all drivers who took order(s) (regardless of whether they
+eventually complete the order), also show each driver's total income
+and total order(s) completed. Order the list by total income
+(descending), then by total order(s) completed*/
+
+SELECT vaninterest.servicer_auth,
+A.SO as noOrder,
+B.SM as income from vaninterest
+inner join (select servicer_auth, count(*) as SO
+from vanorder where order_status = 2 group by servicer_auth) A
+on vaninterest.servicer_auth = A.servicer_auth
+inner join (select servicer_auth, sum(total_price) as SM
+from vanorder where order_status = 2 group by servicer_auth) B
+on B.servicer_auth = vaninterest.servicer_auth
+group by servicer_auth
+order by income DESC, noOrder
+;
+
+Group by requestor_client_id
+Order by sum(total_price) DESC, count(*) DESC;
+
+--5) List of driver ID who took orders, but never complete an order?
+select servicer_auth
+FROM (
+select vanorder.servicer_auth
+from vanorder
+union all
+select vaninterest.servicer_auth
+from vaninterest
+) van
+group by servicer_auth
+HAVING COUNT(*) = 1
+ORDER BY servicer_auth;
